@@ -4,6 +4,9 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -17,6 +20,9 @@ import adminRoutes from './routes/adminRoutes.js';
 import { errorHandler } from './middlewares/errorMiddleware.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -47,16 +53,6 @@ if (process.env.MONGO_URI) {
   console.log('No MONGO_URI provided in environment. Running backend in stateless dev fallback mode.');
 }
 
-// Healthcheck Route
-app.get('/', (req, res) => {
-  res.json({
-    status: 'online',
-    app: 'AI Interview Pro API Engine',
-    version: '1.0.0',
-    timestamp: new Date()
-  });
-});
-
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -69,6 +65,36 @@ app.use('/api/resume', resumeRoutes);
 app.use('/api/coding', codingRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Healthcheck API Route
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'online',
+    app: 'AI Interview Pro API Engine',
+    version: '1.0.0',
+    timestamp: new Date()
+  });
+});
+
+// Serve Client Static Build Files (Render Production Deployment)
+const clientBuildPath = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(clientBuildPath, 'index.html'));
+    }
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({
+      status: 'online',
+      app: 'AI Interview Pro API Engine',
+      version: '1.0.0',
+      timestamp: new Date()
+    });
+  });
+}
 
 // Error Middleware
 app.use(errorHandler);
