@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: '0.0.0.0', // Expose to all network interfaces for multi-device local connections
     proxy: {
       '/api': {
         target: 'http://localhost:5000',

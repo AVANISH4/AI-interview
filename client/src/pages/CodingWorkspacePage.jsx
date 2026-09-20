@@ -9,7 +9,7 @@ import {
   BarChart2, Zap, ArrowRight, FileCode2, Layers, BookOpen, Clock, 
   Search, Filter, Globe, Users, Share2, Terminal, Radio,
   MessageSquare, Mic, MicOff, Send, Bot, User, Volume2, VolumeX,
-  MessageCircle, UserCheck, HelpCircle, Monitor, Layout
+  MessageCircle, UserCheck, HelpCircle, Monitor, Layout, Link2
 } from 'lucide-react';
 
 export const CodingWorkspacePage = () => {
@@ -22,12 +22,12 @@ export const CodingWorkspacePage = () => {
   const [selectedProblem, setSelectedProblem] = useState(TOP_150_QUESTIONS[0]);
   const [language, setLanguage] = useState('javascript');
   
-  // Custom Starter Templates for Pure IDE Mode (No DSA questions)
+  // Custom Starter Templates for Pure IDE Mode (No DSA questions - NO VOID)
   const pureIdeTemplates = {
-    javascript: `// File: solution.js\n// Real-Time Remote IDE - Write any custom JavaScript code here...\n\nfunction main() {\n  console.log("Hello from Real-Time Remote IDE!");\n}\n\nmain();`,
-    python: `# File: solution.py\n# Real-Time Remote IDE - Write any custom Python code here...\n\ndef main():\n    print("Hello from Real-Time Remote IDE!")\n\nif __name__ == "__main__":\n    main()`,
+    javascript: `// File: solution.js\n// Real-Time Remote IDE - Write any custom JavaScript code here...\n\nfunction main() {\n  console.log("Hello from Real-Time Remote IDE!");\n  return 0;\n}\n\nmain();`,
+    python: `# File: solution.py\n# Real-Time Remote IDE - Write any custom Python code here...\n\ndef main():\n    print("Hello from Real-Time Remote IDE!")\n    return 0\n\nif __name__ == "__main__":\n    main()`,
     cpp: `// File: solution.cpp\n// Real-Time Remote IDE - Write any custom C++ 20 code here...\n#include <iostream>\n#include <vector>\n#include <string>\nusing namespace std;\n\nint main() {\n    cout << "Hello from Real-Time Remote IDE!" << endl;\n    return 0;\n}`,
-    java: `// File: Solution.java\n// Real-Time Remote IDE - Write any custom Java 17 code here...\nimport java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        System.out.println("Hello from Real-Time Remote IDE!");\n    }\n}`
+    java: `// File: Solution.java\n// Real-Time Remote IDE - Write any custom Java 17 code here...\nimport java.util.*;\n\npublic class Solution {\n    public int solution(int[] nums) {\n        System.out.println("Hello from Real-Time Remote IDE!");\n        return 0;\n    }\n}`
   };
 
   const [code, setCode] = useState(pureIdeTemplates.javascript);
@@ -38,6 +38,8 @@ export const CodingWorkspacePage = () => {
   const [executionMode, setExecutionMode] = useState('remote'); // remote or local
   const [liveSessionId, setLiveSessionId] = useState('live-' + Math.floor(1000 + Math.random() * 9000));
   const [liveShared, setLiveShared] = useState(false);
+  const [networkIp, setNetworkIp] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [activeTab, setActiveTab] = useState('description');
   const [loading, setLoading] = useState(false);
@@ -76,6 +78,84 @@ export const CodingWorkspacePage = () => {
                           q.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesDifficulty && matchesSearch;
   });
+
+  // Fetch Network IP and Check for URL Session Parameters on Mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionParam = params.get('session');
+    if (sessionParam) {
+      setLiveSessionId(sessionParam);
+      setLiveShared(true);
+    }
+
+    api.get('/network-ip')
+      .then(res => {
+        if (res.data && res.data.localIp) {
+          setNetworkIp(res.data.localIp);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Multi-Device Polling Synchronization Loop across 2 different devices
+  useEffect(() => {
+    if (!liveShared || !liveSessionId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get(`/coding/room/${liveSessionId}`);
+        if (res.data && res.data.room && res.data.room.code !== undefined) {
+          const remoteRoom = res.data.room;
+          if (remoteRoom.code !== code && remoteRoom.updatedAt > (window.lastLocalCodeUpdate || 0)) {
+            setCode(remoteRoom.code);
+            if (remoteRoom.language && remoteRoom.language !== language) {
+              setLanguage(remoteRoom.language);
+            }
+          }
+        }
+      } catch (err) {}
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [liveShared, liveSessionId, code, language]);
+
+  // Handle local code editing & broadcast to remote room
+  const handleCodeChange = (newVal) => {
+    const updated = newVal || '';
+    setCode(updated);
+    window.lastLocalCodeUpdate = Date.now();
+
+    if (liveShared && liveSessionId) {
+      api.post(`/coding/room/${liveSessionId}`, {
+        code: updated,
+        language,
+        workspaceMode
+      }).catch(() => {});
+    }
+  };
+
+  // Multi-Device Local Network Share Button
+  const handleShareMultiDeviceLink = async () => {
+    const ipToUse = networkIp || window.location.hostname || 'localhost';
+    const joinUrl = `http://${ipToUse}:3000/#/coding?session=${liveSessionId}`;
+    
+    setLiveShared(true);
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (e) {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    }
+
+    // Broadcast initial state
+    api.post(`/coding/room/${liveSessionId}`, {
+      code,
+      language,
+      workspaceMode
+    }).catch(() => {});
+  };
 
   // Switch code when mode, language, or problem changes
   useEffect(() => {
@@ -126,15 +206,11 @@ export const CodingWorkspacePage = () => {
 
   const handleResetCode = () => {
     if (workspaceMode === 'pure_ide') {
-      setCode(pureIdeTemplates[language] || pureIdeTemplates.javascript);
+      handleCodeChange(pureIdeTemplates[language] || pureIdeTemplates.javascript);
     } else {
-      setCode(selectedProblem.starterCode[language] || selectedProblem.starterCode.javascript);
+      handleCodeChange(selectedProblem.starterCode[language] || selectedProblem.starterCode.javascript);
     }
     setResults(null);
-  };
-
-  const handleToggleLiveShare = () => {
-    setLiveShared(!liveShared);
   };
 
   // External AI Interviewer Interaction Handler
@@ -171,7 +247,7 @@ export const CodingWorkspacePage = () => {
           ? `Your code complexity is dynamically computed via AST parsing! Single loops achieve O(N), nested loops yield O(N²), and log-based search achieves O(log N).`
           : `For ${selectedProblem.title}, your complexity target is ${selectedProblem.timeComplexity} and ${selectedProblem.spaceComplexity}. Look out for nested iterations!`;
       } else if (lower.includes('code') || lower.includes('review') || lower.includes('check')) {
-        replyText = `I reviewed your current ${fileExtensions[language]} editor code! You have drafted ${code.trim().split('\n').length} lines of code. Click "Run & Remote Evaluate" to execute remote cloud analysis!`;
+        replyText = `I reviewed your current ${fileExtensions[language]} editor code! You have drafted ${code.trim().split('\n').length} lines of code. Click "Run Code" to execute remote cloud analysis!`;
       } else {
         replyText = `Thank you for sharing your thought process! Your code logic is clear. Go ahead and write or modify your implementation in ${fileExtensions[language]}. Let me know if you want me to review or test your logic!`;
       }
@@ -198,26 +274,6 @@ export const CodingWorkspacePage = () => {
   // Advanced Code AST & Real-Time Complexity Evaluator
   const analyzeCodeComplexityDetails = (currentCode, lang) => {
     const cleanedCode = currentCode.trim();
-
-    // Check if candidate wrote actual code logic
-    let isDefaultCommentOnly = false;
-    if (lang === 'cpp') {
-      isDefaultCommentOnly = (cleanedCode.includes('// Write your C++ 20 solution here...') || cleanedCode.includes('Write any custom C++ 20 code here')) && !cleanedCode.includes('return') && !cleanedCode.includes('for') && !cleanedCode.includes('while') && !cleanedCode.includes('cout');
-    } else if (lang === 'java') {
-      isDefaultCommentOnly = (cleanedCode.includes('// Write your Java 17 solution here...') || cleanedCode.includes('Write any custom Java 17 code here')) && !cleanedCode.includes('return') && !cleanedCode.includes('for') && !cleanedCode.includes('while') && !cleanedCode.includes('println');
-    } else if (lang === 'python') {
-      isDefaultCommentOnly = (cleanedCode.includes('pass') || cleanedCode.includes('Write any custom Python code here')) && !cleanedCode.includes('return') && !cleanedCode.includes('for') && !cleanedCode.includes('while') && !cleanedCode.includes('print');
-    } else {
-      isDefaultCommentOnly = (cleanedCode.includes('// Write your JavaScript solution here...') || cleanedCode.includes('Write any custom JavaScript code here')) && !cleanedCode.includes('return') && !cleanedCode.includes('for') && !cleanedCode.includes('while') && !cleanedCode.includes('log');
-    }
-
-    if (isDefaultCommentOnly && workspaceMode === 'dsa') {
-      return {
-        passed: false,
-        error: `Please write your ${lang.toUpperCase()} solution code inside the editor before running.`,
-        testResults: []
-      };
-    }
 
     // Code AST Complexity Rules
     let timeComplexity = 'O(1) Constant Time';
@@ -277,20 +333,6 @@ export const CodingWorkspacePage = () => {
   const handleRunOrSubmit = async () => {
     setLoading(true);
     const evalRes = analyzeCodeComplexityDetails(code, language);
-
-    if (!evalRes.passed && evalRes.error) {
-      setResults({
-        passed: false,
-        errorMessage: evalRes.error,
-        executionTimeMs: 0,
-        memoryUsageMb: 0,
-        testResults: [
-          { input: 'Sample Input', expectedOutput: 'Expected Output', actualOutput: 'No Return / Empty Code', passed: false }
-        ]
-      });
-      setLoading(false);
-      return;
-    }
 
     try {
       const res = await api.post('/coding/submit', { 
@@ -368,21 +410,21 @@ export const CodingWorkspacePage = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-xl text-white">
-                {workspaceMode === 'pure_ide' ? 'Real-Time Standalone Remote IDE' : 'LeetCode Top 150 & Remote IDE'}
+                {workspaceMode === 'pure_ide' ? 'Real-Time Multi-Device Remote IDE' : 'LeetCode Top 150 & Multi-Device IDE'}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
-                <Radio className="w-3 h-3 animate-pulse" /> Cloud Sandbox Active
+                <Radio className="w-3 h-3 animate-pulse" /> Live Remote IDE Active
               </span>
             </div>
             <p className="text-xs text-slate-400">
               {workspaceMode === 'pure_ide' 
-                ? 'Pure standalone IDE sandbox — write, run, and evaluate any custom C++, Java, Python, or JS code without DSA questions'
-                : 'Interactive LeetCode Top 150 practice workspace with AST complexity evaluator and AI interviewer'}
+                ? 'Pure standalone IDE sandbox — write, run, and sync code in real time between 2 different devices across local browser / Wi-Fi'
+                : 'Interactive LeetCode Top 150 practice workspace with AST complexity evaluator and multi-device live sync'}
             </p>
           </div>
         </div>
 
-        {/* Workspace Mode Switcher (Pure IDE vs LeetCode DSA Mode) */}
+        {/* Workspace Controls & Multi-Device Sharing */}
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-1 p-1 rounded-2xl bg-slate-900 border border-slate-800">
             <button
@@ -393,7 +435,7 @@ export const CodingWorkspacePage = () => {
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Code2 className="w-3.5 h-3.5 text-emerald-400" /> Pure IDE (No DSA Questions)
+              <Code2 className="w-3.5 h-3.5 text-emerald-400" /> Pure IDE (No DSA)
             </button>
             <button
               onClick={() => setWorkspaceMode('dsa')}
@@ -419,19 +461,46 @@ export const CodingWorkspacePage = () => {
             {voiceEnabled ? 'Voice: ON' : 'Voice: MUTED'}
           </button>
 
+          {/* Multi-Device 2-Person Local Link Share */}
           <button
-            onClick={handleToggleLiveShare}
+            onClick={handleShareMultiDeviceLink}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
-              liveShared 
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-glow-purple'
+              copiedLink || liveShared 
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-purple'
                 : 'glass-card text-slate-300 hover:text-white border-white/10'
             }`}
+            title="Connect 2 Devices on Local Browser / Wi-Fi"
           >
-            <Users className="w-3.5 h-3.5" />
-            {liveShared ? `Live: ${liveSessionId}` : 'Share Remote Pair Session'}
+            <Link2 className="w-3.5 h-3.5 text-emerald-400" />
+            {copiedLink 
+              ? 'Multi-Device Link Copied!' 
+              : liveShared 
+              ? `Live 2-Device Sync: ${liveSessionId}` 
+              : 'Connect 2 Devices'}
           </button>
         </div>
       </div>
+
+      {/* Local Network Multi-Device Banner */}
+      {liveShared && networkIp && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-purple-500/10 to-brand-purple/15 border border-emerald-500/30 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-slate-200">
+            <Users className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <span>
+              <strong className="text-white">Multi-Device Live Sync Active!</strong> Open this link on your second device (phone, laptop, tablet):
+            </span>
+            <code className="px-2 py-0.5 rounded bg-slate-900 text-emerald-400 font-mono font-bold">
+              http://{networkIp}:3000/#/coding?session={liveSessionId}
+            </code>
+          </div>
+          <button
+            onClick={handleShareMultiDeviceLink}
+            className="px-3 py-1 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 hover:text-white font-bold text-[11px] flex items-center gap-1"
+          >
+            <Copy className="w-3.5 h-3.5 text-emerald-400" /> Copy 2nd Device Link
+          </button>
+        </div>
+      )}
 
       {/* Category Pills Slider - Only shown in DSA Mode */}
       {workspaceMode === 'dsa' && (
@@ -467,7 +536,12 @@ export const CodingWorkspacePage = () => {
                 
                 <select
                   value={language}
-                  onChange={(e) => setLanguage(e.target.value)}
+                  onChange={(e) => {
+                    setLanguage(e.target.value);
+                    if (liveShared && liveSessionId) {
+                      api.post(`/coding/room/${liveSessionId}`, { code, language: e.target.value, workspaceMode });
+                    }
+                  }}
                   className="glass-input rounded-xl px-3 py-1.5 text-xs font-bold text-white bg-slate-900 border border-slate-700"
                 >
                   <option value="cpp" className="bg-slate-900">C++ 20 (.cpp)</option>
@@ -525,7 +599,7 @@ export const CodingWorkspacePage = () => {
                 language={language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language === 'python' ? 'python' : 'javascript'}
                 theme={editorTheme}
                 value={code}
-                onChange={(value) => setCode(value || '')}
+                onChange={handleCodeChange}
                 options={{
                   fontSize: 15,
                   minimap: { enabled: true },
@@ -878,7 +952,12 @@ export const CodingWorkspacePage = () => {
                 <div className="flex items-center gap-3">
                   <select
                     value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
+                    onChange={(e) => {
+                      setLanguage(e.target.value);
+                      if (liveShared && liveSessionId) {
+                        api.post(`/coding/room/${liveSessionId}`, { code, language: e.target.value, workspaceMode });
+                      }
+                    }}
                     className="glass-input rounded-xl px-3 py-1.5 text-xs font-bold text-slate-200"
                   >
                     <option value="cpp" className="bg-slate-900">C++ 20 (.cpp)</option>
@@ -894,6 +973,16 @@ export const CodingWorkspacePage = () => {
 
                 {/* IDE Action Buttons */}
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRunOrSubmit}
+                    disabled={loading}
+                    className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-glow-purple hover:opacity-90 transition-all disabled:opacity-50"
+                    title="Run Code in Remote Cloud Sandbox"
+                  >
+                    {loading ? <Sparkles className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-white text-white" />}
+                    {loading ? 'Running...' : 'Run Code'}
+                  </button>
+
                   <button
                     onClick={() => {
                       setActiveTab('interviewer');
@@ -938,7 +1027,7 @@ export const CodingWorkspacePage = () => {
                   language={language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language === 'python' ? 'python' : 'javascript'}
                   theme={editorTheme}
                   value={code}
-                  onChange={(value) => setCode(value || '')}
+                  onChange={handleCodeChange}
                   options={{
                     fontSize: fontSize,
                     minimap: { enabled: false },

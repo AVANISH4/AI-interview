@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import os from 'os';
 
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
@@ -30,7 +31,7 @@ const PORT = process.env.PORT || 5000;
 // Security & Middlewares
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: '*', // Allow connections from any local device or IP
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -39,7 +40,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Rate Limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 500,
   message: { success: false, message: 'Too many requests from this IP, please try again later.' }
 });
 app.use('/api', limiter);
@@ -52,6 +53,59 @@ if (process.env.MONGO_URI) {
 } else {
   console.log('No MONGO_URI provided in environment. Running backend in stateless dev fallback mode.');
 }
+
+// In-Memory Live Multi-Device Coding Session Store
+const liveCodingRooms = {};
+
+// Multi-Device Live Session Endpoints
+app.get('/api/coding/room/:roomId', (req, res) => {
+  const { roomId } = req.params;
+  const room = liveCodingRooms[roomId] || {
+    roomId,
+    code: '',
+    language: 'javascript',
+    updatedAt: Date.now()
+  };
+  res.json({ success: true, room });
+});
+
+app.post('/api/coding/room/:roomId', (req, res) => {
+  const { roomId } = req.params;
+  const { code, language, workspaceMode } = req.body;
+  
+  liveCodingRooms[roomId] = {
+    roomId,
+    code: code || '',
+    language: language || 'javascript',
+    workspaceMode: workspaceMode || 'pure_ide',
+    updatedAt: Date.now()
+  };
+
+  res.json({ success: true, room: liveCodingRooms[roomId] });
+});
+
+// Network IP Discovery Endpoint for Connecting 2 Devices on Local Browser / LAN
+app.get('/api/network-ip', (req, res) => {
+  const interfaces = os.networkInterfaces();
+  let localIp = 'localhost';
+  
+  for (const name of Object.keys(interfaces)) {
+    for (const net of interfaces[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        localIp = net.address;
+        break;
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    localIp,
+    clientPort: 3000,
+    serverPort: PORT,
+    localUrl: `http://${localIp}:3000`
+  });
+});
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -99,6 +153,7 @@ if (fs.existsSync(clientBuildPath)) {
 // Error Middleware
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`AI Interview Pro Server active on http://localhost:${PORT}`);
+// Listen on 0.0.0.0 to support local network connections from 2 different devices
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`AI Interview Pro Server active on http://localhost:${PORT} and binding 0.0.0.0`);
 });
