@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import api from '../services/api';
 import { LEETCODE_CATEGORIES, TOP_150_QUESTIONS } from '../data/leetcodeTop150';
+import { useSpeech } from '../hooks/useSpeech';
 import { 
   Play, CheckCircle2, AlertCircle, Cpu, HardDrive, Code2, 
   Sparkles, RotateCcw, Copy, Check, Sun, Moon, Sliders, 
   BarChart2, Zap, ArrowRight, FileCode2, Layers, BookOpen, Clock, 
-  Search, Filter, Globe, Users, Share2, Terminal, Radio 
+  Search, Filter, Globe, Users, Share2, Terminal, Radio,
+  MessageSquare, Mic, MicOff, Send, Bot, User, Volume2, VolumeX,
+  MessageCircle, UserCheck, HelpCircle
 } from 'lucide-react';
 
 export const CodingWorkspacePage = () => {
@@ -29,6 +32,23 @@ export const CodingWorkspacePage = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 
+  // External AI Technical Interviewer State & Speech Integration
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [interviewerMessages, setInterviewerMessages] = useState([]);
+  const [userChatInput, setUserChatInput] = useState('');
+  const [interviewerThinking, setInterviewerThinking] = useState(false);
+
+  const {
+    isListening,
+    transcript,
+    setTranscript,
+    isSpeaking,
+    startListening,
+    stopListening,
+    speakText,
+    stopSpeaking
+  } = useSpeech();
+
   // File Extensions map
   const fileExtensions = {
     javascript: 'solution.js',
@@ -46,11 +66,34 @@ export const CodingWorkspacePage = () => {
     return matchesCategory && matchesDifficulty && matchesSearch;
   });
 
-  // Reset code when problem or language changes
+  // Reset code & Greet Candidate via External AI Interviewer when problem changes
   useEffect(() => {
     setCode(selectedProblem.starterCode[language] || selectedProblem.starterCode.javascript);
     setResults(null);
-  }, [selectedProblem, language]);
+
+    const greeting = `Hello! I am your Senior External Interviewer. For "${selectedProblem.title}", before writing code, how do you plan to solve this problem to achieve ${selectedProblem.timeComplexity} time complexity and ${selectedProblem.spaceComplexity} space complexity?`;
+    
+    setInterviewerMessages([
+      {
+        sender: 'interviewer',
+        name: 'Senior AI Technical Interviewer (Google)',
+        text: greeting,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        type: 'question'
+      }
+    ]);
+
+    if (voiceEnabled) {
+      speakText(greeting);
+    }
+  }, [selectedProblem]);
+
+  // Sync spoken transcript into chat input box
+  useEffect(() => {
+    if (transcript) {
+      setUserChatInput(transcript);
+    }
+  }, [transcript]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(code);
@@ -65,6 +108,60 @@ export const CodingWorkspacePage = () => {
 
   const handleToggleLiveShare = () => {
     setLiveShared(!liveShared);
+  };
+
+  // External AI Interviewer Interaction Handler
+  const handleSendUserChatMessage = (textOverride) => {
+    const text = textOverride || userChatInput;
+    if (!text.trim()) return;
+
+    const newMsg = {
+      sender: 'user',
+      name: 'Candidate (You)',
+      text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const updated = [...interviewerMessages, newMsg];
+    setInterviewerMessages(updated);
+    setUserChatInput('');
+    setTranscript('');
+    stopListening();
+    setInterviewerThinking(true);
+
+    setTimeout(() => {
+      let replyText = '';
+      const lower = text.toLowerCase();
+
+      if (lower.includes('hint') || lower.includes('approach')) {
+        replyText = `Great approach thought! For ${selectedProblem.title}, consider using ${selectedProblem.category}. ${selectedProblem.targetExplanation}`;
+      } else if (lower.includes('edge') || lower.includes('case')) {
+        replyText = `Excellent question on edge cases! Make sure your solution handles empty collections, negative numbers, single elements, and duplicate values gracefully without memory overflows.`;
+      } else if (lower.includes('complexity') || lower.includes('time') || lower.includes('space')) {
+        replyText = `Regarding complexity bounds: For ${selectedProblem.title}, your goal is ${selectedProblem.timeComplexity} and ${selectedProblem.spaceComplexity}. Look out for nested iterations which degrade performance.`;
+      } else if (lower.includes('code') || lower.includes('review') || lower.includes('check')) {
+        replyText = `I reviewed your current ${fileExtensions[language]} editor code! You have drafted ${code.trim().split('\n').length} lines. Make sure to double check edge cases and test case bounds before running the remote sandbox.`;
+      } else {
+        replyText = `Thank you for sharing your thought process on ${selectedProblem.title}! That is a clear technical explanation. Go ahead and finish your implementation in ${fileExtensions[language]}. Let me know if you want me to review edge cases or evaluate complexity!`;
+      }
+
+      setInterviewerMessages((prev) => [
+        ...prev,
+        {
+          sender: 'interviewer',
+          name: 'Senior AI Technical Interviewer (Google)',
+          text: replyText,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          type: 'response'
+        }
+      ]);
+
+      setInterviewerThinking(false);
+
+      if (voiceEnabled) {
+        speakText(replyText);
+      }
+    }, 1000);
   };
 
   // Advanced Code AST & Real-Time Complexity Evaluator
@@ -231,17 +328,29 @@ export const CodingWorkspacePage = () => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-extrabold text-xl text-white">Real-Time Remote IDE & Complexity Evaluator</h1>
+              <h1 className="font-extrabold text-xl text-white">Real-Time Remote IDE & External AI Interviewer</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
                 <Radio className="w-3 h-3 animate-pulse" /> Live Remote IDE Active
               </span>
             </div>
-            <p className="text-xs text-slate-400">Write custom code, run remote cloud evaluation, and receive AST Time & Space Complexity explanations</p>
+            <p className="text-xs text-slate-400">Write custom code, solve LeetCode Top 150 problems, and answer external AI interviewer questions in real time</p>
           </div>
         </div>
 
-        {/* Remote Live Pair-Programming Controls */}
+        {/* Remote Live Pair-Programming Controls & External Interviewer Voice Toggle */}
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
+              voiceEnabled
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-purple'
+                : 'glass-card text-slate-400 border-white/10'
+            }`}
+          >
+            {voiceEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+            {voiceEnabled ? 'Interviewer Voice: ON' : 'Interviewer Voice: MUTED'}
+          </button>
+
           <button
             onClick={handleToggleLiveShare}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
@@ -285,7 +394,7 @@ export const CodingWorkspacePage = () => {
       {/* Main Workspace (2 Column Split Screen) */}
       <div className="grid lg:grid-cols-12 gap-6 min-h-[600px]">
         
-        {/* LEFT COLUMN: Question Navigator & Problem Statement (5 Cols) */}
+        {/* LEFT COLUMN: Question Navigator, Problem Statement & External AI Interviewer (5 Cols) */}
         <div className="lg:col-span-5 glass-panel rounded-3xl p-6 border border-white/10 flex flex-col justify-between gap-6">
           <div>
             
@@ -323,27 +432,36 @@ export const CodingWorkspacePage = () => {
               </select>
             </div>
 
-            {/* Header Tabs */}
-            <div className="flex items-center gap-4 border-b border-slate-800 pb-3 mb-4">
+            {/* Header Navigation Tabs */}
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3 mb-4 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveTab('description')}
-                className={`text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'description' ? 'text-brand-purple border-b-2 border-brand-purple pb-1' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <BookOpen className="w-3.5 h-3.5" /> Description
+                <BookOpen className="w-3.5 h-3.5" /> Problem
               </button>
               <button
                 onClick={() => setActiveTab('testcases')}
-                className={`text-xs font-bold transition-all flex items-center gap-1.5 ${
+                className={`text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'testcases' ? 'text-brand-purple border-b-2 border-brand-purple pb-1' : 'text-slate-400 hover:text-white'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5" /> Test Cases ({selectedProblem.testCases.length})
               </button>
+              <button
+                onClick={() => setActiveTab('interviewer')}
+                className={`text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'interviewer' ? 'text-amber-400 border-b-2 border-amber-400 pb-1' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-amber-400" /> External AI Interviewer
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              </button>
             </div>
 
-            {/* Description Content */}
+            {/* Description Tab Content */}
             {activeTab === 'description' && (
               <div className="flex flex-col gap-4 text-xs text-slate-300">
                 <div className="flex items-center justify-between">
@@ -359,9 +477,9 @@ export const CodingWorkspacePage = () => {
                   {selectedProblem.description}
                 </p>
 
-                {/* Examples */}
+                {/* Question-Specific Examples */}
                 <div>
-                  <span className="font-bold text-slate-200 uppercase tracking-wider text-[10px] block mb-2">Examples</span>
+                  <span className="font-bold text-slate-200 uppercase tracking-wider text-[10px] block mb-2">Question-Specific Examples</span>
                   <div className="flex flex-col gap-2.5">
                     {selectedProblem.examples.map((ex, idx) => (
                       <div key={idx} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-[11px] flex flex-col gap-1">
@@ -386,6 +504,130 @@ export const CodingWorkspacePage = () => {
                     <div className="text-emerald-400"><span className="text-emerald-500">Expected:</span> {tc.expected}</div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* External AI Technical Interviewer Tab Content */}
+            {activeTab === 'interviewer' && (
+              <div className="flex flex-col gap-3">
+                
+                {/* Interviewer Status Bar */}
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-brand-purple/10 border border-amber-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+                      <UserCheck className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-xs text-white">Senior External AI Interviewer</div>
+                      <div className="text-[10px] text-emerald-400 flex items-center gap-1 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Technical Examiner Online
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      const lastMsg = interviewerMessages.filter(m => m.sender === 'interviewer').slice(-1)[0];
+                      if (lastMsg) speakText(lastMsg.text);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] font-bold flex items-center gap-1"
+                    title="Replay Voice Question"
+                  >
+                    <Volume2 className="w-3 h-3 text-amber-400" /> Replay Voice
+                  </button>
+                </div>
+
+                {/* Quick Action Interviewer Prompt Buttons */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => handleSendUserChatMessage("Could you give me a subtle approach hint without revealing the answer?")}
+                    className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-amber-300 hover:border-amber-500/40 flex items-center gap-1 transition-all"
+                  >
+                    💡 Request Approach Hint
+                  </button>
+                  <button
+                    onClick={() => handleSendUserChatMessage("What edge cases should I consider for this problem?")}
+                    className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-emerald-300 hover:border-emerald-500/40 flex items-center gap-1 transition-all"
+                  >
+                    🧪 Edge Case Challenge
+                  </button>
+                  <button
+                    onClick={() => handleSendUserChatMessage("Please probe my planned time and space complexity.")}
+                    className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-brand-blue hover:border-brand-blue/40 flex items-center gap-1 transition-all"
+                  >
+                    ⏱️ Time & Space Probing
+                  </button>
+                  <button
+                    onClick={() => handleSendUserChatMessage("Please review the solution code I currently wrote in the editor.")}
+                    className="px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-semibold text-slate-300 hover:text-purple-300 hover:border-purple-500/40 flex items-center gap-1 transition-all"
+                  >
+                    🔍 Review Code in IDE
+                  </button>
+                </div>
+
+                {/* Live Dialogue Messages Timeline */}
+                <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto pr-1 scrollbar-thin">
+                  {interviewerMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-2xl text-xs flex flex-col gap-1 border ${
+                        msg.sender === 'interviewer'
+                          ? 'bg-slate-900/90 border-amber-500/30 text-slate-200'
+                          : 'bg-brand-purple/20 border-brand-purple/40 text-white ml-4'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold mb-0.5">
+                        <span className="flex items-center gap-1 text-amber-300">
+                          {msg.sender === 'interviewer' ? <Bot className="w-3 h-3 text-amber-400" /> : <User className="w-3 h-3 text-brand-purple" />}
+                          {msg.name}
+                        </span>
+                        <span>{msg.time}</span>
+                      </div>
+                      <p className="leading-relaxed whitespace-pre-line">{msg.text}</p>
+                    </div>
+                  ))}
+
+                  {interviewerThinking && (
+                    <div className="p-3 rounded-2xl bg-slate-900/60 border border-amber-500/20 text-xs text-amber-400 font-semibold flex items-center gap-2 animate-pulse">
+                      <Bot className="w-4 h-4 animate-spin" /> External Interviewer is evaluating your input & editor code...
+                    </div>
+                  )}
+                </div>
+
+                {/* Candidate Response Input Bar with Mic & Send */}
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      if (isListening) stopListening();
+                      else startListening();
+                    }}
+                    className={`p-2.5 rounded-xl border transition-all ${
+                      isListening
+                        ? 'bg-rose-500/20 text-rose-400 border-rose-500 animate-pulse'
+                        : 'glass-card text-slate-300 hover:text-white border-white/10'
+                    }`}
+                    title={isListening ? "Stop Voice Input" : "Speak to External Interviewer"}
+                  >
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                  </button>
+
+                  <input
+                    type="text"
+                    value={userChatInput}
+                    onChange={(e) => setUserChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendUserChatMessage()}
+                    placeholder="Type or speak your answer to the External Interviewer..."
+                    className="glass-input rounded-xl px-3 py-2 text-xs text-white flex-1"
+                  />
+
+                  <button
+                    onClick={() => handleSendUserChatMessage()}
+                    className="p-2.5 rounded-xl bg-gradient-primary text-white hover:opacity-90 transition-all shadow-glow-purple"
+                    title="Send Response"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -447,6 +689,17 @@ export const CodingWorkspacePage = () => {
               {/* IDE Action Buttons */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => {
+                    setActiveTab('interviewer');
+                    handleSendUserChatMessage("Please review the code I wrote in the editor.");
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1 hover:bg-amber-500/30 transition-all"
+                  title="Ask External Interviewer to Review Code"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-amber-400" /> Ask Interviewer
+                </button>
+
+                <button
                   onClick={() => setEditorTheme(editorTheme === 'vs-dark' ? 'light' : 'vs-dark')}
                   className="p-2 rounded-xl glass-card text-slate-300 hover:text-white border border-white/5"
                   title="Toggle Theme"
@@ -465,135 +718,119 @@ export const CodingWorkspacePage = () => {
                 <button
                   onClick={handleResetCode}
                   className="p-2 rounded-xl glass-card text-slate-300 hover:text-white border border-white/5"
-                  title="Clear / Reset Code"
+                  title="Reset Code"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                </button>
-
-                <button
-                  onClick={handleRunOrSubmit}
-                  disabled={loading}
-                  className="btn-gradient px-4 py-2 rounded-xl text-xs font-bold text-white shadow-glow-purple flex items-center gap-1.5 ml-2"
-                >
-                  {loading ? 'Evaluating...' : <><Play className="w-3.5 h-3.5 fill-current" /> Run Remote Code</>}
                 </button>
               </div>
             </div>
 
-            {/* Real Monaco Editor Container */}
-            <div className="rounded-2xl overflow-hidden border border-slate-800">
+            {/* Monaco Editor Container */}
+            <div className="h-[420px] rounded-2xl overflow-hidden border border-slate-800">
               <Editor
-                height="380px"
+                height="100%"
                 language={language === 'cpp' ? 'cpp' : language === 'java' ? 'java' : language === 'python' ? 'python' : 'javascript'}
                 theme={editorTheme}
                 value={code}
-                onChange={(val) => setCode(val || '')}
+                onChange={(value) => setCode(value || '')}
                 options={{
                   fontSize: fontSize,
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   automaticLayout: true,
-                  lineNumbers: 'on',
-                  padding: { top: 12, bottom: 12 }
+                  tabSize: 2,
+                  wordWrap: 'on'
                 }}
               />
             </div>
+
+            {/* Execution Control Bar */}
+            <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-800">
+              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                <Terminal className="w-3.5 h-3.5 text-brand-purple" />
+                <span>Remote Execution Engine ({fileExtensions[language]})</span>
+              </div>
+
+              <button
+                onClick={handleRunOrSubmit}
+                disabled={loading}
+                className="px-6 py-2.5 rounded-xl bg-gradient-primary text-white font-extrabold text-xs flex items-center gap-2 shadow-glow-purple hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {loading ? <Sparkles className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-white" />}
+                {loading ? 'Evaluating Code...' : 'Run & Remote Evaluate'}
+              </button>
+            </div>
           </div>
 
-          {/* Complexity & Output Evaluation Panel */}
+          {/* Code Complexity & Remote Execution Results Display */}
           {results && (
-            <div className="glass-panel rounded-3xl p-6 border border-brand-purple/40 bg-slate-900/90 shadow-glow-purple flex flex-col gap-5">
-              
-              {/* Header Badge */}
+            <div className="glass-panel rounded-3xl p-5 border border-white/10 flex flex-col gap-4 animate-fade-in">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-brand-purple" />
-                  <h3 className="font-extrabold text-base text-white">AST Time & Space Complexity Explanation</h3>
+                  {results.passed ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-rose-400" />
+                  )}
+                  <h3 className="font-extrabold text-sm text-white">
+                    {results.passed ? 'Execution & Evaluation Passed' : 'Evaluation Notice'}
+                  </h3>
                 </div>
-                {results.passed ? (
-                  <span className="text-xs font-mono text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Passed Test Suite
-                  </span>
-                ) : (
-                  <span className="text-xs font-mono text-rose-400 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" /> Code Evaluation Failed
-                  </span>
+
+                {results.passed && (
+                  <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-emerald-400" /> {results.executionTimeMs} ms
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Cpu className="w-3.5 h-3.5 text-brand-blue" /> {results.memoryUsageMb} MB
+                    </span>
+                  </div>
                 )}
               </div>
 
-              {!results.passed && results.errorMessage && (
-                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 font-mono">
-                  ⚠ {results.errorMessage}
+              {results.errorMessage ? (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+                  {results.errorMessage}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {/* AST Complexity Cards */}
+                  {results.complexity && (
+                    <div className="grid md:grid-cols-2 gap-3">
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Calculated Time Complexity</span>
+                        <span className="text-emerald-400 font-extrabold text-sm">{results.complexity.timeComplexity}</span>
+                        <p className="text-[11px] text-slate-400 mt-1 leading-snug">{results.complexity.timeExplanation}</p>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Calculated Space Complexity</span>
+                        <span className="text-brand-blue font-extrabold text-sm">{results.complexity.spaceComplexity}</span>
+                        <p className="text-[11px] text-slate-400 mt-1 leading-snug">{results.complexity.spaceExplanation}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remote AI Feedback */}
+                  {results.aiFeedback && (
+                    <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 flex flex-col gap-2 text-xs">
+                      <span className="font-extrabold text-slate-200 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-brand-purple" /> {results.aiFeedback.codeQuality}
+                      </span>
+                      <ul className="list-disc list-inside text-slate-400 space-y-1">
+                        {results.aiFeedback.optimizationTips?.map((tip, i) => (
+                          <li key={i}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
-
-              {results.passed && (
-                <>
-                  {/* Time & Space Complexity Badges */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    
-                    {/* Time Complexity */}
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-emerald-500/30 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Time Complexity</span>
-                      <span className="text-emerald-400 font-extrabold text-sm">{results.complexity?.timeComplexity || results.aiFeedback?.timeComplexity}</span>
-                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
-                        <div className="bg-emerald-400 h-full w-[90%]" />
-                      </div>
-                    </div>
-
-                    {/* Space Complexity */}
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-brand-blue/30 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Space Complexity</span>
-                      <span className="text-brand-blue font-extrabold text-sm">{results.complexity?.spaceComplexity || results.aiFeedback?.spaceComplexity}</span>
-                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
-                        <div className="bg-brand-blue h-full w-[80%]" />
-                      </div>
-                    </div>
-
-                    {/* Execution Time */}
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-amber-500/30 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <Cpu className="w-3 h-3 text-amber-400" /> Execution Time
-                      </span>
-                      <span className="text-amber-300 font-extrabold text-sm">{results.executionTimeMs} ms</span>
-                      <span className="text-[10px] text-slate-500">Faster than 95%</span>
-                    </div>
-
-                    {/* Memory Usage */}
-                    <div className="p-3.5 rounded-2xl bg-slate-950 border border-brand-purple/30 flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                        <HardDrive className="w-3 h-3 text-brand-purple" /> Memory Allocation
-                      </span>
-                      <span className="text-purple-300 font-extrabold text-sm">{results.memoryUsageMb} MB</span>
-                      <span className="text-[10px] text-slate-500">Optimal memory</span>
-                    </div>
-
-                  </div>
-
-                  {/* Detailed Written Complexity Explanations */}
-                  <div className="flex flex-col gap-3 text-xs text-slate-300 bg-slate-950/80 p-4 rounded-2xl border border-slate-800">
-                    <span className="font-bold text-white text-xs block uppercase tracking-wider">Why This Complexity Applies To Your Code:</span>
-                    
-                    <div className="p-3 rounded-xl bg-slate-900 border border-emerald-500/20 flex flex-col gap-1">
-                      <span className="font-bold text-emerald-400">⏱ Time Complexity Analysis:</span>
-                      <p className="text-slate-300 leading-relaxed">{results.complexity?.timeExplanation}</p>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-slate-900 border border-brand-blue/20 flex flex-col gap-1">
-                      <span className="font-bold text-brand-blue">💾 Space Complexity Analysis:</span>
-                      <p className="text-slate-300 leading-relaxed">{results.complexity?.spaceExplanation}</p>
-                    </div>
-                  </div>
-                </>
-              )}
-
             </div>
           )}
-
         </div>
-
       </div>
-
     </div>
   );
 };
