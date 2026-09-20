@@ -20,6 +20,7 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.13",
     "openai": "^4.38.0",
+    "pptxgenjs": "^4.0.1",
     "stripe": "^15.3.0"
   }
 }

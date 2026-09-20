@@ -1,4 +1,5 @@
 export const generateReportPDF = async (reportData, userName) => {
+  // Generates a mock/structured PDF text stream / HTML string suitable for client download
   return {
     title: `AI Interview Pro Performance Report - ${userName}`,
     date: new Date().toISOString(),
