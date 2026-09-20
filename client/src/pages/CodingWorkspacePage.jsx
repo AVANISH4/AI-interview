@@ -484,6 +484,16 @@ export const CodingWorkspacePage = () => {
               {/* Toolbar Controls */}
               <div className="flex items-center gap-2">
                 <button
+                  onClick={handleRunOrSubmit}
+                  disabled={loading}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-extrabold text-xs flex items-center gap-1.5 shadow-glow-purple hover:opacity-90 transition-all disabled:opacity-50"
+                  title="Run Code in Remote Cloud Sandbox"
+                >
+                  {loading ? <Sparkles className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5 fill-white text-white" />}
+                  {loading ? 'Running...' : 'Run Code'}
+                </button>
+
+                <button
                   onClick={() => setEditorTheme(editorTheme === 'vs-dark' ? 'light' : 'vs-dark')}
                   className="px-3 py-1.5 rounded-xl glass-card text-slate-300 hover:text-white border border-white/5 flex items-center gap-1.5 text-xs font-semibold"
                 >

@@ -450,8 +450,8 @@ const generateTop150Questions = () => {
         starterCode: {
           javascript: `// File: solution.js\nfunction ${fnName.toLowerCase() || 'solution'}(...args) {\n  // Write your JavaScript solution here...\n  \n}`,
           python: `# File: solution.py\ndef ${fnName.toLowerCase() || 'solution'}(*args):\n    # Write your Python 3 solution here...\n    pass`,
-          cpp: `// File: solution.cpp\n#include <iostream>\n#include <vector>\n#include <unordered_map>\n#include <string>\n#include <algorithm>\nusing namespace std;\n\nclass Solution {\npublic:\n    // Write your C++ 20 solution here...\n    void ${fnName.toLowerCase() || 'solve'}() {\n        \n    }\n};`,
-          java: `// File: Solution.java\nimport java.util.*;\n\npublic class Solution {\n    // Write your Java 17 solution here...\n    public void ${fnName.toLowerCase() || 'solve'}() {\n        \n    }\n}`
+          cpp: `// File: solution.cpp\n#include <iostream>\n#include <vector>\n#include <unordered_map>\n#include <string>\n#include <algorithm>\nusing namespace std;\n\nclass Solution {\npublic:\n    // Write your C++ 20 solution here...\n    int ${fnName.toLowerCase() || 'solution'}(vector<int>& nums) {\n        return 0;\n    }\n};`,
+          java: `// File: Solution.java\nimport java.util.*;\n\npublic class Solution {\n    // Write your Java 17 solution here...\n    public int ${fnName.toLowerCase() || 'solution'}(int[] nums) {\n        return 0;\n    }\n}`
         },
         testCases: meta.examples.map(ex => ({
           input: ex.input,
