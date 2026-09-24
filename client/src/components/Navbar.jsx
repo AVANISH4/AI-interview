@@ -138,6 +138,7 @@ export const Navbar = () => {
             <Smartphone className="w-4 h-4 text-emerald-400" /> Connect Mobile Phone / External Laptop
           </button>
           <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="text-slate-200 py-2">Dashboard</Link>
+          <Link to="/features" onClick={() => setMobileMenuOpen(false)} className="text-slate-200 py-2">Features Stack</Link>
           <Link to="/companies" onClick={() => setMobileMenuOpen(false)} className="text-slate-200 py-2">Companies</Link>
           <Link to="/coding" onClick={() => setMobileMenuOpen(false)} className="text-slate-200 py-2">Coding Lab</Link>
           <Link to="/leaderboard" onClick={() => setMobileMenuOpen(false)} className="text-slate-200 py-2">Leaderboard</Link>

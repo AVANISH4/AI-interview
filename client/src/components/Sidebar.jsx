@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, PlayCircle, Building2, Code2, FileText, 
-  BarChart3, Bookmark, Trophy, Crown, ShieldAlert, User, LogOut 
+  BarChart3, Bookmark, Trophy, Crown, ShieldAlert, User, LogOut, Sparkles
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -12,6 +12,7 @@ export const Sidebar = () => {
   const navItems = [
     { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { label: 'Start Interview', path: '/interview/setup', icon: PlayCircle },
+    { label: 'Features Stack', path: '/features', icon: Sparkles },
     { label: 'Company Tracks', path: '/companies', icon: Building2 },
     { label: 'Coding Lab', path: '/coding', icon: Code2 },
     { label: 'Resume Interview', path: '/resume-interview', icon: FileText },

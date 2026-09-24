@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import api from '../services/api';
 import { LEETCODE_CATEGORIES, TOP_150_QUESTIONS } from '../data/leetcodeTop150';
-import { useSpeech } from '../hooks/useSpeech';
 import { 
   Play, CheckCircle2, AlertCircle, Cpu, HardDrive, Code2, 
   Sparkles, RotateCcw, Copy, Check, Sun, Moon, Sliders, 
   BarChart2, Zap, ArrowRight, FileCode2, Layers, BookOpen, Clock, 
   Search, Filter, Globe, Users, Share2, Terminal, Radio,
-  MessageSquare, Mic, MicOff, Send, Bot, User, Volume2, VolumeX,
+  MessageSquare, Send, Bot, User, 
   MessageCircle, UserCheck, HelpCircle, Monitor, Layout, Link2
 } from 'lucide-react';
 
@@ -45,22 +44,10 @@ export const CodingWorkspacePage = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 
-  // External AI Technical Interviewer State & Speech Integration
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  // External AI Technical Interviewer State
   const [interviewerMessages, setInterviewerMessages] = useState([]);
   const [userChatInput, setUserChatInput] = useState('');
   const [interviewerThinking, setInterviewerThinking] = useState(false);
-
-  const {
-    isListening,
-    transcript,
-    setTranscript,
-    isSpeaking,
-    startListening,
-    stopListening,
-    speakText,
-    stopSpeaking
-  } = useSpeech();
 
   // File Extensions map
   const fileExtensions = {
@@ -185,18 +172,7 @@ export const CodingWorkspacePage = () => {
         type: 'question'
       }
     ]);
-
-    if (voiceEnabled) {
-      speakText(greeting);
-    }
   }, [workspaceMode, selectedProblem]);
-
-  // Sync spoken transcript into chat input box
-  useEffect(() => {
-    if (transcript) {
-      setUserChatInput(transcript);
-    }
-  }, [transcript]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(code);
@@ -228,8 +204,6 @@ export const CodingWorkspacePage = () => {
     const updated = [...interviewerMessages, newMsg];
     setInterviewerMessages(updated);
     setUserChatInput('');
-    setTranscript('');
-    stopListening();
     setInterviewerThinking(true);
 
     setTimeout(() => {
@@ -264,10 +238,6 @@ export const CodingWorkspacePage = () => {
       ]);
 
       setInterviewerThinking(false);
-
-      if (voiceEnabled) {
-        speakText(replyText);
-      }
     }, 1000);
   };
 
@@ -448,18 +418,6 @@ export const CodingWorkspacePage = () => {
               <BookOpen className="w-3.5 h-3.5 text-brand-purple" /> LeetCode Top 150 Mode
             </button>
           </div>
-
-          <button
-            onClick={() => setVoiceEnabled(!voiceEnabled)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border ${
-              voiceEnabled
-                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-glow-purple'
-                : 'glass-card text-slate-400 border-white/10'
-            }`}
-          >
-            {voiceEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
-            {voiceEnabled ? 'Voice: ON' : 'Voice: MUTED'}
-          </button>
 
           {/* Multi-Device 2-Person Local Link Share */}
           <button
@@ -804,17 +762,6 @@ export const CodingWorkspacePage = () => {
                         </div>
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => {
-                        const lastMsg = interviewerMessages.filter(m => m.sender === 'interviewer').slice(-1)[0];
-                        if (lastMsg) speakText(lastMsg.text);
-                      }}
-                      className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:text-white text-[10px] font-bold flex items-center gap-1"
-                      title="Replay Voice Question"
-                    >
-                      <Volume2 className="w-3 h-3 text-amber-400" /> Replay Voice
-                    </button>
                   </div>
 
                   {/* Quick Action Interviewer Prompt Buttons */}
@@ -874,29 +821,14 @@ export const CodingWorkspacePage = () => {
                     )}
                   </div>
 
-                  {/* Candidate Response Input Bar with Mic & Send */}
+                  {/* Candidate Response Input Bar */}
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
-                    <button
-                      onClick={() => {
-                        if (isListening) stopListening();
-                        else startListening();
-                      }}
-                      className={`p-2.5 rounded-xl border transition-all ${
-                        isListening
-                          ? 'bg-rose-500/20 text-rose-400 border-rose-500 animate-pulse'
-                          : 'glass-card text-slate-300 hover:text-white border-white/10'
-                      }`}
-                      title={isListening ? "Stop Voice Input" : "Speak to External Interviewer"}
-                    >
-                      {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-400" />}
-                    </button>
-
                     <input
                       type="text"
                       value={userChatInput}
                       onChange={(e) => setUserChatInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendUserChatMessage()}
-                      placeholder="Type or speak your answer to the External Interviewer..."
+                      placeholder="Type your answer to the External Interviewer..."
                       className="glass-input rounded-xl px-3 py-2 text-xs text-white flex-1"
                     />
 

@@ -24,6 +24,7 @@ import { PricingPage } from './pages/PricingPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { FeaturesPage } from './pages/FeaturesPage';
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
           {/* Public Landing & Auth */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -41,6 +43,7 @@ export default function App() {
           {/* Platform Dashboard Routes */}
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/features" element={<FeaturesPage />} />
             <Route path="/interview/setup" element={<InterviewSetupPage />} />
             <Route path="/interview/room" element={<AIInterviewRoomPage />} />
             <Route path="/evaluation" element={<EvaluationResultsPage />} />

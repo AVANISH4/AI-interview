@@ -142,9 +142,66 @@ export const evaluateCodeSubmission = async ({ language, code, title }) => {
 };
 
 export const parseResumeSkills = async (resumeText) => {
-  const defaultSkills = ['JavaScript', 'React', 'Node.js', 'Express', 'MongoDB', 'TypeScript', 'Tailwind CSS', 'REST APIs', 'Git', 'System Design'];
-  if (!resumeText) return defaultSkills;
+  const text = (resumeText || '').toLowerCase();
+  
+  const knownSkills = [
+    'JavaScript', 'TypeScript', 'React', 'Next.js', 'Vue.js', 'Angular', 'Node.js',
+    'Express', 'NestJS', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis', 'Python',
+    'Django', 'Flask', 'FastAPI', 'Java', 'Spring Boot', 'C++', 'C#', '.NET',
+    'AWS', 'Docker', 'Kubernetes', 'CI/CD', 'GraphQL', 'REST APIs', 'Redux',
+    'Tailwind CSS', 'System Design', 'Git', 'PyTorch', 'TensorFlow', 'Pandas',
+    'Scikit-learn', 'SQL', 'NoSQL', 'Linux', 'Microservices'
+  ];
 
-  const found = defaultSkills.filter(s => resumeText.toLowerCase().includes(s.toLowerCase()));
-  return found.length ? found : defaultSkills;
+  const extractedSkills = knownSkills.filter(s => text.includes(s.toLowerCase()));
+  if (extractedSkills.length === 0) {
+    extractedSkills.push('JavaScript', 'React', 'Node.js', 'Express', 'MongoDB', 'REST APIs', 'System Design');
+  }
+
+  // Detect Target Job Role & Category
+  let detectedRole = 'Full Stack MERN Developer';
+  let suggestedCategory = 'Full Stack';
+  let experienceYears = 2;
+
+  if (text.includes('data scientist') || text.includes('machine learning') || text.includes('ai engineer') || text.includes('pytorch') || text.includes('tensorflow') || text.includes('deep learning')) {
+    detectedRole = 'Machine Learning & AI Engineer';
+    suggestedCategory = 'Machine Learning';
+  } else if (text.includes('devops') || text.includes('cloud engineer') || text.includes('kubernetes') || text.includes('aws') || text.includes('docker')) {
+    detectedRole = 'DevOps & Cloud Systems Engineer';
+    suggestedCategory = 'DevOps';
+  } else if (text.includes('frontend') || text.includes('react') || text.includes('vue') || text.includes('angular')) {
+    detectedRole = 'Frontend React Engineer';
+    suggestedCategory = 'Frontend';
+  } else if (text.includes('backend') || text.includes('node') || text.includes('express') || text.includes('django') || text.includes('postgres') || text.includes('microservices')) {
+    detectedRole = 'Backend Systems Engineer';
+    suggestedCategory = 'Backend';
+  } else if (text.includes('java') || text.includes('spring')) {
+    detectedRole = 'Java Enterprise Developer';
+    suggestedCategory = 'Java';
+  } else if (text.includes('python')) {
+    detectedRole = 'Python Software Engineer';
+    suggestedCategory = 'Python';
+  } else if (text.includes('c++')) {
+    detectedRole = 'C++ Systems Engineer';
+    suggestedCategory = 'C++';
+  } else if (text.includes('full stack') || text.includes('mern') || text.includes('mean')) {
+    detectedRole = 'Full Stack MERN Engineer';
+    suggestedCategory = 'Full Stack';
+  }
+
+  // Detect Experience Level
+  if (text.includes('senior') || text.includes('lead') || text.includes('5+') || text.includes('6 years') || text.includes('7 years') || text.includes('8 years')) {
+    experienceYears = 5;
+  } else if (text.includes('principal') || text.includes('architect') || text.includes('10+')) {
+    experienceYears = 8;
+  } else if (text.includes('junior') || text.includes('intern') || text.includes('entry')) {
+    experienceYears = 1;
+  }
+
+  return {
+    extractedSkills,
+    detectedRole,
+    suggestedCategory,
+    experienceYears
+  };
 };
